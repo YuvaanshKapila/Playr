@@ -10,12 +10,12 @@ AI-powered sports talent development and recruitment platform with smart matchma
 - Track progress with a rating system and build a video portfolio
 - Gain exposure to recruiters and verified coaches
 
-### Coach Side (Coming Soon)
+### Coach Side 
 - Create and manage teams
 - Provide feedback on player videos
 - Access AI-powered drill and training recommendations
 
-### Recruiter Side (Coming Soon)
+### Recruiter Side
 - Swipe-based interface for discovering athletes
 - Advanced search and filtering
 - Chat with players directly
