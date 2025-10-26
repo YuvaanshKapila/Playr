@@ -1,0 +1,45 @@
+.player-setup-page {
+  background: var(--bg-light);
+  min-height: 100vh;
+  padding: 20px 0;
+}
+
+.setup-header {
+  text-align: center;
+  margin-bottom: 32px;
+}
+
+.logo-small {
+  font-size: 32px;
+  font-weight: 800;
+  font-style: italic;
+  background: linear-gradient(90deg, var(--gradient-start), var(--gradient-mid), var(--gradient-end));
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  margin-bottom: 12px;
+}
+
+.setup-header h2 {
+  font-size: 24px;
+  margin-bottom: 8px;
+}
+
+.section-title {
+  font-size: 18px;
+  font-weight: 600;
+  margin-bottom: 16px;
+  color: var(--text-dark);
+}
+
+.input-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+
+@media (max-width: 480px) {
+  .input-row {
+    grid-template-columns: 1fr;
+  }
+}

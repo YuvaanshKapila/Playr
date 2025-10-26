@@ -1,0 +1,31 @@
+.intro-page {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.intro-content {
+  width: 100%;
+  max-width: 400px;
+}
+
+.logo-section {
+  text-align: center;
+  margin-bottom: 48px;
+}
+
+.tagline {
+  color: var(--text-light);
+  font-size: 18px;
+  font-weight: 500;
+  margin-top: 8px;
+}
+
+.error-banner {
+  background: #fee;
+  color: var(--error);
+  padding: 12px;
+  border-radius: 8px;
+  font-size: 14px;
+  text-align: center;
+}

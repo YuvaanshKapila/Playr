@@ -1,0 +1,476 @@
+import { useState, useEffect } from 'react'
+import { supabase } from '../config/supabase'
+import { analyzeSkillVideo, extractScore } from '../config/gemini'
+import './PlayerDashboard.css'
+
+export default function PlayerDashboard() {
+  const [profile, setProfile] = useState(null)
+  const [videos, setVideos] = useState([])
+  const [showUpload, setShowUpload] = useState(false)
+  const [loading, setLoading] = useState(true)
+  const [uploadData, setUploadData] = useState({
+    title: '',
+    description: '',
+    skill_type: ''
+  })
+  const [videoFile, setVideoFile] = useState(null)
+  const [uploading, setUploading] = useState(false)
+  const [currentView, setCurrentView] = useState('home') // home, contests, leaderboard, messages
+  const [contests, setContests] = useState([])
+  const [leaderboard, setLeaderboard] = useState([])
+  const [messages, setMessages] = useState([])
+
+  useEffect(() => {
+    loadProfile()
+    loadVideos()
+    loadContests()
+    loadLeaderboard()
+    loadMessages()
+  }, [])
+
+  const loadContests = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('contests')
+        .select('*')
+        .eq('is_active', true)
+        .order('start_date', { ascending: false })
+
+      if (error) throw error
+      setContests(data || [])
+    } catch (error) {
+      console.error('Error loading contests:', error)
+    }
+  }
+
+  const loadLeaderboard = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('player_profiles')
+        .select('*, profiles!player_profiles_user_id_fkey(full_name)')
+        .order('skill_rating', { ascending: false })
+        .limit(50)
+
+      if (error) throw error
+      setLeaderboard(data || [])
+    } catch (error) {
+      console.error('Error loading leaderboard:', error)
+    }
+  }
+
+  const loadMessages = async () => {
+    try {
+      const user = await supabase.auth.getUser()
+      const { data, error } = await supabase
+        .from('messages')
+        .select('*, sender:profiles!messages_sender_id_fkey(full_name), receiver:profiles!messages_receiver_id_fkey(full_name)')
+        .or(`sender_id.eq.${user.data.user.id},receiver_id.eq.${user.data.user.id}`)
+        .order('created_at', { ascending: false })
+
+      if (error) throw error
+      setMessages(data || [])
+    } catch (error) {
+      console.error('Error loading messages:', error)
+    }
+  }
+
+  const loadProfile = async () => {
+    try {
+      const user = await supabase.auth.getUser()
+      console.log('Loading profile for user:', user.data.user.id)
+
+      const { data, error } = await supabase
+        .from('player_profiles')
+        .select('*, profiles!player_profiles_user_id_fkey(full_name, email)')
+        .eq('user_id', user.data.user.id)
+        .single()
+
+      console.log('Profile query result:', { data, error })
+
+      if (error) {
+        console.error('Profile load error:', error)
+        throw error
+      }
+
+      console.log('Profile loaded successfully:', data)
+      setProfile(data)
+    } catch (error) {
+      console.error('Error loading profile:', error)
+      console.error('Error details:', JSON.stringify(error, null, 2))
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const loadVideos = async () => {
+    try {
+      const user = await supabase.auth.getUser()
+      const { data, error } = await supabase
+        .from('videos')
+        .select('*')
+        .eq('user_id', user.data.user.id)
+        .order('created_at', { ascending: false })
+
+      if (error) throw error
+      setVideos(data || [])
+    } catch (error) {
+      console.error('Error loading videos:', error)
+    }
+  }
+
+  const handleVideoUpload = async (e) => {
+    e.preventDefault()
+    if (!videoFile) {
+      alert('Please select a video file')
+      return
+    }
+
+    setUploading(true)
+
+    try {
+      const user = await supabase.auth.getUser()
+      const fileExt = videoFile.name.split('.').pop()
+      const fileName = `${user.data.user.id}/${Date.now()}.${fileExt}`
+
+      // Upload video to Supabase storage
+      const { error: uploadError } = await supabase.storage
+        .from('videos')
+        .upload(fileName, videoFile)
+
+      if (uploadError) throw uploadError
+
+      // Get public URL
+      const { data: { publicUrl } } = supabase.storage
+        .from('videos')
+        .getPublicUrl(fileName)
+
+      // Analyze video with Gemini AI
+      const analysis = await analyzeSkillVideo(
+        uploadData.description || uploadData.title,
+        profile.sport,
+        uploadData.skill_type || 'general'
+      )
+
+      const aiScore = extractScore(analysis.analysis)
+
+      // Save video metadata to database
+      const { error: dbError } = await supabase
+        .from('videos')
+        .insert({
+          player_id: profile.id,
+          user_id: user.data.user.id,
+          title: uploadData.title,
+          description: uploadData.description,
+          video_url: publicUrl,
+          ai_analysis: analysis.analysis,
+          ai_score: aiScore,
+          ai_feedback: { raw: analysis.analysis }
+        })
+
+      if (dbError) throw dbError
+
+      // Update player total videos
+      await supabase
+        .from('player_profiles')
+        .update({ total_videos: profile.total_videos + 1 })
+        .eq('id', profile.id)
+
+      // Reset form and reload
+      setShowUpload(false)
+      setUploadData({ title: '', description: '', skill_type: '' })
+      setVideoFile(null)
+      loadVideos()
+      loadProfile()
+      alert('Video uploaded and analyzed successfully!')
+    } catch (error) {
+      console.error('Error uploading video:', error)
+      alert('Failed to upload video: ' + error.message)
+    } finally {
+      setUploading(false)
+    }
+  }
+
+  const handleLogout = async () => {
+    await supabase.auth.signOut()
+    window.location.reload()
+  }
+
+  if (loading) {
+    return (
+      <div className="loading-screen">
+        <div className="spinner"></div>
+      </div>
+    )
+  }
+
+  if (!profile) {
+    return (
+      <div className="player-dashboard">
+        <header className="dashboard-header">
+          <div className="container">
+            <div className="header-content">
+              <div className="logo-small">Playr</div>
+              <button onClick={handleLogout} className="btn-logout">
+                Logout
+              </button>
+            </div>
+          </div>
+        </header>
+        <div className="container">
+          <div className="card">
+            <h3>Error Loading Profile</h3>
+            <p>Could not load your player profile. Please check the browser console (F12) for errors.</p>
+            <button className="btn btn-primary mt-16" onClick={() => window.location.reload()}>
+              Reload Page
+            </button>
+          </div>
+        </div>
+      </div>
+    )
+  }
+
+  // Render different views based on currentView
+  const renderContent = () => {
+    if (currentView === 'contests') {
+      return (
+        <div>
+          <h2 className="page-title">Contests</h2>
+          {contests.length === 0 ? (
+            <div className="card empty-state">
+              <p className="text-center text-muted">No active contests yet. Check back soon!</p>
+            </div>
+          ) : (
+            contests.map(contest => (
+              <div key={contest.id} className="card" style={{marginBottom: '16px'}}>
+                <h3>{contest.title}</h3>
+                <p className="text-muted">{contest.description}</p>
+                <div style={{marginTop: '12px', display: 'flex', gap: '12px', flexWrap: 'wrap'}}>
+                  <span className="badge">{contest.sport}</span>
+                  <span className="badge">{contest.difficulty}</span>
+                  <span className="badge">{contest.challenge_type}</span>
+                </div>
+                <button className="btn btn-primary" style={{marginTop: '16px'}}>Enter Contest</button>
+              </div>
+            ))
+          )}
+        </div>
+      )
+    }
+
+    if (currentView === 'leaderboard') {
+      return (
+        <div>
+          <h2 className="page-title">Leaderboard</h2>
+          <div className="card">
+            {leaderboard.length === 0 ? (
+              <p className="text-center text-muted">No rankings yet</p>
+            ) : (
+              <div className="leaderboard-list">
+                {leaderboard.map((player, index) => (
+                  <div key={player.id} className="leaderboard-item">
+                    <div className="rank">#{index + 1}</div>
+                    <div className="player-info">
+                      <strong>{player.profiles?.full_name || 'Player'}</strong>
+                      <span className="text-muted text-sm">{player.sport} • {player.position}</span>
+                    </div>
+                    <div className="rating">{player.skill_rating}</div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+      )
+    }
+
+    if (currentView === 'messages') {
+      return (
+        <div>
+          <h2 className="page-title">Messages</h2>
+          {messages.length === 0 ? (
+            <div className="card empty-state">
+              <p className="text-center text-muted">No messages yet</p>
+            </div>
+          ) : (
+            messages.map(msg => (
+              <div key={msg.id} className="card" style={{marginBottom: '12px'}}>
+                <div style={{display: 'flex', justifyContent: 'space-between', marginBottom: '8px'}}>
+                  <strong>{msg.sender?.full_name || 'Unknown'}</strong>
+                  <span className="text-sm text-muted">{new Date(msg.created_at).toLocaleDateString()}</span>
+                </div>
+                <p>{msg.content}</p>
+              </div>
+            ))
+          )}
+        </div>
+      )
+    }
+
+    // Home view
+    return (
+      <div>
+        {/* Profile Stats Card */}
+        <div className="card profile-card">
+          <div className="profile-header">
+            <div className="profile-avatar">
+              {profile.profiles.full_name.charAt(0).toUpperCase()}
+            </div>
+            <div className="profile-info">
+              <h2>{profile.profiles.full_name}</h2>
+              <p className="text-muted">{profile.sport} • {profile.position}</p>
+            </div>
+          </div>
+
+          <div className="stats-grid">
+            <div className="stat">
+              <div className="stat-value">{profile.skill_rating}</div>
+              <div className="stat-label">Rating</div>
+            </div>
+            <div className="stat">
+              <div className="stat-value">{profile.total_videos}</div>
+              <div className="stat-label">Videos</div>
+            </div>
+            <div className="stat">
+              <div className="stat-value">{profile.total_contests}</div>
+              <div className="stat-label">Contests</div>
+            </div>
+          </div>
+        </div>
+
+        {/* Upload Button */}
+        {!showUpload && (
+          <button
+            className="btn btn-gradient mb-24"
+            onClick={() => setShowUpload(true)}
+          >
+            Upload Skill Video
+          </button>
+        )}
+
+        {/* Upload Form */}
+        {showUpload && (
+          <div className="card upload-card">
+            <div className="card-header">
+              <h3>Upload New Video</h3>
+              <button
+                className="btn-close"
+                onClick={() => setShowUpload(false)}
+              >
+                ×
+              </button>
+            </div>
+
+            <form onSubmit={handleVideoUpload}>
+              <div className="input-group">
+                <label htmlFor="title">Video Title *</label>
+                <input
+                  id="title"
+                  type="text"
+                  value={uploadData.title}
+                  onChange={(e) => setUploadData({ ...uploadData, title: e.target.value })}
+                  placeholder="e.g., Free Kick Practice"
+                  required
+                />
+              </div>
+
+              <div className="input-group">
+                <label htmlFor="skill_type">Skill Type</label>
+                <input
+                  id="skill_type"
+                  type="text"
+                  value={uploadData.skill_type}
+                  onChange={(e) => setUploadData({ ...uploadData, skill_type: e.target.value })}
+                  placeholder="e.g., shooting, dribbling, passing"
+                />
+              </div>
+
+              <div className="input-group">
+                <label htmlFor="description">Description</label>
+                <textarea
+                  id="description"
+                  value={uploadData.description}
+                  onChange={(e) => setUploadData({ ...uploadData, description: e.target.value })}
+                  placeholder="Describe what you're demonstrating in this video..."
+                  rows="3"
+                />
+              </div>
+
+              <div className="input-group">
+                <label htmlFor="video">Video File *</label>
+                <input
+                  id="video"
+                  type="file"
+                  accept="video/*"
+                  onChange={(e) => setVideoFile(e.target.files[0])}
+                  required
+                />
+                <p className="text-sm text-muted mt-8">Max 50MB. Formats: MP4, MOV, AVI</p>
+              </div>
+
+              <button
+                type="submit"
+                className="btn btn-primary"
+                disabled={uploading}
+              >
+                {uploading ? (
+                  <>
+                    <span className="spinner"></span>
+                    Uploading & Analyzing...
+                  </>
+                ) : (
+                  'Upload Video'
+                )}
+              </button>
+            </form>
+          </div>
+        )}
+
+        {/* Videos Section */}
+        <div className="section-header">
+          <h3>My Videos</h3>
+          <span className="text-muted">{videos.length} total</span>
+        </div>
+
+        {videos.length === 0 ? (
+          <div className="card empty-state">
+            <p className="text-center text-muted">
+              No videos yet. Upload your first skill video to get AI feedback!
+            </p>
+          </div>
+        ) : (
+          <div className="videos-grid">
+            {videos.map((video) => (
+              <div key={video.id} className="card video-card">
+                <video
+                  src={video.video_url}
+                  controls
+                  className="video-player"
+                />
+                <div className="video-info">
+                  <h4>{video.title}</h4>
+                  {video.description && (
+                    <p className="text-sm text-muted">{video.description}</p>
+                  )}
+                  {video.ai_score && (
+                    <div className="ai-score">
+                      AI Score: <strong>{video.ai_score}/100</strong>
+                    </div>
+                  )}
+                  {video.ai_analysis && (
+                    <details className="ai-feedback">
+                      <summary>View AI Feedback</summary>
+                      <p className="text-sm">{video.ai_analysis}</p>
+                    </details>
+                  )}
+                  <p className="text-sm text-muted mt-8">
+                    {new Date(video.created_at).toLocaleDateString()}
+                  </p>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+    </div>
+  )
+}

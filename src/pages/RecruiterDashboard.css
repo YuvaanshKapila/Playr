@@ -1,0 +1,159 @@
+.swipe-container {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 20px 0;
+}
+
+.player-card {
+  background: var(--bg-white);
+  border-radius: 16px;
+  box-shadow: 0 4px 20px rgba(0,0,0,0.1);
+  width: 100%;
+  max-width: 400px;
+  overflow: hidden;
+}
+
+.player-card-header {
+  background: linear-gradient(135deg, var(--gradient-start), var(--gradient-mid), var(--gradient-end));
+  padding: 24px;
+  display: flex;
+  gap: 16px;
+  align-items: center;
+}
+
+.player-avatar-large {
+  width: 80px;
+  height: 80px;
+  border-radius: 50%;
+  background: white;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 36px;
+  font-weight: 700;
+  color: var(--text-dark);
+  flex-shrink: 0;
+}
+
+.player-card-info {
+  flex: 1;
+}
+
+.player-card-info h2 {
+  margin: 0 0 4px 0;
+  font-size: 22px;
+  color: var(--text-dark);
+}
+
+.player-card-body {
+  padding: 20px;
+}
+
+.stat-row {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+.stat-item {
+  text-align: center;
+  padding: 12px;
+  background: var(--bg-light);
+  border-radius: 8px;
+}
+
+.stat-label {
+  font-size: 11px;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  margin-bottom: 4px;
+}
+
+.stat-value {
+  font-size: 18px;
+  font-weight: 700;
+  color: var(--primary-dark);
+}
+
+.swipe-actions {
+  display: flex;
+  justify-content: center;
+  gap: 20px;
+  padding: 20px;
+  border-top: 1px solid var(--border);
+}
+
+.swipe-btn {
+  width: 64px;
+  height: 64px;
+  border-radius: 50%;
+  border: none;
+  font-size: 28px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+}
+
+.swipe-btn:hover {
+  transform: scale(1.1);
+  box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+}
+
+.swipe-btn:active {
+  transform: scale(0.95);
+}
+
+.swipe-btn-pass {
+  background: #ff4458;
+  color: white;
+}
+
+.swipe-btn-like {
+  background: var(--primary);
+  color: var(--text-dark);
+}
+
+.swipe-btn-pass:hover {
+  background: #e6323f;
+}
+
+.swipe-btn-like:hover {
+  background: var(--primary-dark);
+}
+
+@media (max-width: 480px) {
+  .player-card {
+    max-width: 100%;
+  }
+
+  .player-avatar-large {
+    width: 64px;
+    height: 64px;
+    font-size: 28px;
+  }
+
+  .player-card-info h2 {
+    font-size: 18px;
+  }
+
+  .stat-row {
+    gap: 8px;
+  }
+
+  .stat-item {
+    padding: 8px;
+  }
+
+  .stat-value {
+    font-size: 16px;
+  }
+
+  .swipe-btn {
+    width: 56px;
+    height: 56px;
+    font-size: 24px;
+  }
+}
